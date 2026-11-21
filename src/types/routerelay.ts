@@ -43,4 +43,6 @@ export interface CommuterPresence {
   lng: number
   isSimulated: boolean
   updatedAt: number
+  heading?: number
+  speedKmh?: number
 }

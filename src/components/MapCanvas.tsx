@@ -20,12 +20,25 @@ function MapBoundsFitter({ waypoints }: MapBoundsFitterProps) {
   return null
 }
 
+function MapCenterController({ focusCoords }: { focusCoords?: [number, number] | null }) {
+  const map = useMap()
+
+  useEffect(() => {
+    if (focusCoords && focusCoords[0] && focusCoords[1]) {
+      map.flyTo(focusCoords, 14, { animate: true, duration: 1.2 })
+    }
+  }, [map, focusCoords])
+
+  return null
+}
+
 interface MapCanvasProps {
   activeRoute: RouteRecord
+  focusCoords?: [number, number] | null
   children?: React.ReactNode
 }
 
-export function MapCanvas({ activeRoute, children }: MapCanvasProps) {
+export function MapCanvas({ activeRoute, focusCoords, children }: MapCanvasProps) {
   const center = activeRoute.waypoints[0] || [31.7552, 74.2995]
 
   return (
@@ -43,6 +56,7 @@ export function MapCanvas({ activeRoute, children }: MapCanvasProps) {
         />
 
         <MapBoundsFitter waypoints={activeRoute.waypoints} />
+        <MapCenterController focusCoords={focusCoords} />
 
         {/* Corridor Polyline Outer Glow / Border */}
         <Polyline

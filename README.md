@@ -78,7 +78,7 @@ npm run build
 ## 📅 5-Day Execution Status
 
 - [x] **Day 1:** Environment Setup, Schema Definitions, Leaflet Base Map, Corridor Polylines & Stops
-- [ ] **Day 2:** DeepSpace Auth, Commuter Roles, Ephemeral Presence Broadcasting & Commute Simulator
+- [x] **Day 2:** DeepSpace Auth, Commuter Roles, Ephemeral Presence Broadcasting & Commute Simulator
 - [ ] **Day 3:** Time-Decaying Hazard Pins, Map Drop Modal & Community Voting
 - [ ] **Day 4:** Route Channel Drawer, Quick-Status Chips & Multi-Session Hardening
 - [ ] **Day 5:** Production Deployment to `routerelay.app.space` & Final Review Package
