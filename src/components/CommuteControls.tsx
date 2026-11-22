@@ -6,8 +6,7 @@ import {
   Navigation,
   Play,
   Square,
-  Radio,
-  Gauge,
+  AlertTriangle,
   MapPin,
   Sparkles,
   Wifi,
@@ -30,6 +29,8 @@ interface CommuteControlsProps {
   connected: boolean
   peersCount: number
   onJumpToStop: (stopIndex: number) => void
+  onOpenDropAlert: () => void
+  activeAlertsCount?: number
 }
 
 export function CommuteControls({
@@ -47,12 +48,14 @@ export function CommuteControls({
   connected,
   peersCount,
   onJumpToStop,
+  onOpenDropAlert,
+  activeAlertsCount = 0,
 }: CommuteControlsProps) {
   const [showStopsDropdown, setShowStopsDropdown] = useState(false)
 
   return (
     <div className="bg-card/95 backdrop-blur-md border border-border rounded-xl shadow-lg p-3 sm:p-4 text-xs space-y-3">
-      {/* Top Row: Commuter Role Switcher + Room Presence Status */}
+      {/* Top Row: Commuter Role Switcher + Room Presence Status + Report Hazard Button */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-3">
         {/* Role Selector */}
         <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-lg border border-border">
@@ -99,8 +102,24 @@ export function CommuteControls({
           </button>
         </div>
 
-        {/* Presence Status Pill */}
+        {/* Action Center: Report Hazard Button & Presence Status Pill */}
         <div className="flex items-center gap-2">
+          {/* Day 3: Report Hazard Quick Button */}
+          <button
+            type="button"
+            onClick={onOpenDropAlert}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-bold text-[11px] bg-amber-500/15 border border-amber-500/40 text-amber-500 hover:bg-amber-500/25 transition-all shadow-xs"
+            title="Drop a time-decaying hazard pin along this corridor"
+          >
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
+            <span>Report Hazard</span>
+            {activeAlertsCount > 0 && (
+              <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-amber-500 text-amber-950 text-[10px] font-bold">
+                {activeAlertsCount}
+              </span>
+            )}
+          </button>
+
           <div
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
               connected

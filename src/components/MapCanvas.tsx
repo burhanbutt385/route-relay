@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { MapContainer, TileLayer, Polyline, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Polyline, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import type { RouteRecord } from '../types/routerelay'
 import { StopMarker } from './StopMarker'
@@ -32,17 +32,40 @@ function MapCenterController({ focusCoords }: { focusCoords?: [number, number] |
   return null
 }
 
+function MapClickHandler({ onMapClick }: { onMapClick?: (coords: [number, number]) => void }) {
+  useMapEvents({
+    click(e) {
+      if (onMapClick) {
+        onMapClick([e.latlng.lat, e.latlng.lng])
+      }
+    },
+  })
+  return null
+}
+
 interface MapCanvasProps {
   activeRoute: RouteRecord
   focusCoords?: [number, number] | null
+  onMapClick?: (coords: [number, number]) => void
+  isDropAlertMode?: boolean
   children?: React.ReactNode
 }
 
-export function MapCanvas({ activeRoute, focusCoords, children }: MapCanvasProps) {
+export function MapCanvas({
+  activeRoute,
+  focusCoords,
+  onMapClick,
+  isDropAlertMode = false,
+  children,
+}: MapCanvasProps) {
   const center = activeRoute.waypoints[0] || [31.7552, 74.2995]
 
   return (
-    <div className="relative w-full h-full min-h-[400px]">
+    <div
+      className={`relative w-full h-full min-h-[400px] ${
+        isDropAlertMode ? 'cursor-crosshair' : ''
+      }`}
+    >
       <MapContainer
         center={center}
         zoom={12}
@@ -57,6 +80,7 @@ export function MapCanvas({ activeRoute, focusCoords, children }: MapCanvasProps
 
         <MapBoundsFitter waypoints={activeRoute.waypoints} />
         <MapCenterController focusCoords={focusCoords} />
+        <MapClickHandler onMapClick={onMapClick} />
 
         {/* Corridor Polyline Outer Glow / Border */}
         <Polyline

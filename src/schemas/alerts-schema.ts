@@ -16,7 +16,7 @@ export const alertsSchema: CollectionSchema = {
     { name: 'clearedBy', storage: 'text', interpretation: 'json' },
   ],
   permissions: {
-    viewer: { read: true, create: false, update: false, delete: false },
+    viewer: { read: true, create: true, update: true, delete: false },
     member: { read: true, create: true, update: true, delete: false },
     admin: { read: true, create: true, update: true, delete: true },
   },

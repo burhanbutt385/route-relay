@@ -175,10 +175,10 @@ export interface CommuterPresence {
 - **Verification:** Open two browser windows (one normal, one incognito); enable "Simulate Commute" in Window A and verify smooth marker movement in Window B, plus instant removal when Window A closes.
 
 ### Day 3: Time-Decaying Hazard Pins & Community Voting
-- [ ] Add "Drop Alert" mode (click anywhere on the map or snap to current user location) with a clean modal/popover for `AlertType` and a short note.
-- [ ] Render custom color-coded hazard markers with countdown badges (e.g., `24m left`).
-- [ ] Implement `"Still There (+15m)"` and `"Cleared"` actions with duplicate-vote prevention (`confirmedBy` / `clearedBy`).
-- [ ] Add a 10-second client timer to auto-hide expired alerts.
+- [x] Add "Drop Alert" mode (click anywhere on the map or snap to current user location) with a clean modal/popover for `AlertType` and a short note.
+- [x] Render custom color-coded hazard markers with countdown badges (e.g., `24m left`).
+- [x] Implement `"Still There (+15m)"` and `"Cleared"` actions with duplicate-vote prevention (`confirmedBy` / `clearedBy`).
+- [x] Add a 10-second client timer to auto-hide expired alerts.
 - **Verification:** Drop an alert in Window A, confirm it appears immediately in Window B, test voting rules, and verify automatic expiration.
 
 ### Day 4: Route Channel, Quick-Status Chips & Hardening
