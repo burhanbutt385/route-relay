@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { SEEDED_ROUTES } from '../data/corridors'
 import {
   createDefaultExpiresAt,
   isAlertExpired,
@@ -6,8 +7,8 @@ import {
   formatRelativeTime,
   applyStillThereVote,
   applyClearedVote,
+  getInitialCorridorAlerts,
   DEFAULT_ALERT_TTL_MS,
-  EXTENSION_DURATION_MS,
   MAX_EXPIRY_FROM_NOW_MS,
   ALERT_TYPE_CONFIGS,
 } from './alerts'
@@ -124,5 +125,13 @@ describe('Hazard Alert Logic (Day 3)', () => {
       const result = applyClearedVote(initialAlert, 'user-1', baseTime)
       expect(result).toBeNull()
     })
+  })
+
+  it('provides starter alerts matching every seeded corridor ID', () => {
+    for (const route of SEEDED_ROUTES) {
+      const starterAlerts = getInitialCorridorAlerts(route.id, baseTime)
+      expect(starterAlerts.length).toBeGreaterThan(0)
+      expect(starterAlerts.every((a) => a.routeId === route.id)).toBe(true)
+    }
   })
 })

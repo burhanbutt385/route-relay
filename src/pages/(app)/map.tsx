@@ -8,6 +8,7 @@ import { CommuterMarker } from '../../components/CommuterMarker'
 import { HazardMarker } from '../../components/HazardMarker'
 import { DropAlertModal } from '../../components/DropAlertModal'
 import { CommuteControls } from '../../components/CommuteControls'
+import { RouteChatPanel } from '../../components/RouteChatPanel'
 import { useCommuterPresence } from '../../hooks/useCommuterPresence'
 import { useToast } from '@/components/ui'
 import {
@@ -33,19 +34,23 @@ import {
   ThumbsUp,
   CheckCircle,
   Plus,
+  MessageSquare,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react'
 
 export default function MapPage() {
   const [activeRoute, setActiveRoute] = useState<RouteRecord>(DEFAULT_ROUTE)
   const [focusCoords, setFocusCoords] = useState<[number, number] | null>(null)
-  const [activeSidebarTab, setActiveSidebarTab] = useState<'commuters' | 'stops' | 'alerts'>('commuters')
+  const [activeSidebarTab, setActiveSidebarTab] = useState<'commuters' | 'stops' | 'alerts' | 'chat'>('commuters')
+  const [mobileDrawerHeight, setMobileDrawerHeight] = useState<'minimized' | 'normal' | 'expanded'>('normal')
 
-  // Clock ticker for 10-second (and second-by-second) auto-expiration of decaying hazard pins
-  const [now, setNow] = useState<number>(Date.now())
+  // Clock ticker for 10-second auto-expiration of decaying hazard pins
+  const [now, setNow] = useState<number>(() => Date.now())
   useEffect(() => {
     const timer = setInterval(() => {
       setNow(Date.now())
-    }, 1000)
+    }, 10000)
     return () => clearInterval(timer)
   }, [])
 
@@ -56,6 +61,7 @@ export default function MapPage() {
     myPresence,
     peers,
     setRole,
+    setStatusNote,
     isSimulating,
     toggleSimulating,
     simulationSpeed,
@@ -69,15 +75,21 @@ export default function MapPage() {
 
   // DeepSpace Synced Collections for Hazard Alerts
   const { records: alertRecords } = useQuery<HazardAlert>('alerts')
-  const { create: createAlertRecord, put: putAlertRecord, remove: removeAlertRecord } =
-    useMutations<HazardAlert>('alerts')
+  const {
+    ready: alertsReady,
+    create: createAlertRecord,
+    put: putAlertRecord,
+  } = useMutations<HazardAlert>('alerts')
 
   // Local state for starter corridor hazards so evaluators immediately see active pins
-  const [localSeedAlerts, setLocalSeedAlerts] = useState<HazardAlert[]>(() => [
-    ...getInitialCorridorAlerts('gt-road-grw-ksk'),
-    ...getInitialCorridorAlerts('lahore-ksk-express'),
-    ...getInitialCorridorAlerts('uet-ksk-campus-loop'),
-  ])
+  const [localSeedAlerts, setLocalSeedAlerts] = useState<HazardAlert[]>(() =>
+    SEEDED_ROUTES.flatMap((route) => getInitialCorridorAlerts(route.id))
+  )
+
+  const serverAlertIds = useMemo(
+    () => new Set((alertRecords || []).map((rec) => rec.recordId)),
+    [alertRecords]
+  )
 
   // Drop Alert Modal state
   const [isDropModalOpen, setIsDropModalOpen] = useState<boolean>(false)
@@ -179,18 +191,23 @@ export default function MapPage() {
       clearedBy: [],
     }
 
-    // 1. Optimistically add to local state
-    setLocalSeedAlerts((prev) => [newAlert, ...prev])
+    // Persist to DeepSpace RecordRoom when ready; fall back to local state if offline
+    let syncedToRoom = false
+    if (alertsReady) {
+      try {
+        await createAlertRecord(newAlert)
+        syncedToRoom = true
+        success(
+          'Hazard Alert Broadcasted!',
+          `Your 30-minute ${ALERT_TYPE_CONFIGS[alertInput.type].label} alert is live along ${activeRoute.name}.`
+        )
+      } catch {
+        syncedToRoom = false
+      }
+    }
 
-    // 2. Persist to DeepSpace RecordRoom (synced to all connected clients)
-    try {
-      await createAlertRecord(newAlert)
-      success(
-        'Hazard Alert Broadcasted!',
-        `Your 30-minute ${ALERT_TYPE_CONFIGS[alertInput.type].label} alert is live along ${activeRoute.name}.`
-      )
-    } catch {
-      // Local fallback still functions for evaluators
+    if (!syncedToRoom) {
+      setLocalSeedAlerts((prev) => [newAlert, ...prev])
       success(
         'Hazard Alert Active!',
         `Broadcasted ${ALERT_TYPE_CONFIGS[alertInput.type].label} alert (30m countdown active).`
@@ -209,7 +226,7 @@ export default function MapPage() {
       return
     }
 
-    // Update local state
+    // Update local state for local/seed alerts
     setLocalSeedAlerts((prev) =>
       prev.map((a) =>
         a.id === alert.id
@@ -218,14 +235,16 @@ export default function MapPage() {
       )
     )
 
-    // Sync update to RecordRoom if server record
-    try {
-      await putAlertRecord(alert.id, {
-        expiresAt: result.expiresAt,
-        confirmedBy: result.confirmedBy,
-      })
-    } catch {
-      // Handled gracefully
+    // Sync update to RecordRoom only for persisted server records
+    if (alertsReady && serverAlertIds.has(alert.id)) {
+      try {
+        await putAlertRecord(alert.id, {
+          expiresAt: result.expiresAt,
+          confirmedBy: result.confirmedBy,
+        })
+      } catch {
+        // Handled gracefully
+      }
     }
 
     success(
@@ -243,13 +262,10 @@ export default function MapPage() {
     }
 
     if (result.shouldArchive) {
-      // 2 unique votes reached: immediately remove/archive
+      // 2 unique votes reached: immediately expire/archive across all connected clients
       setLocalSeedAlerts((prev) => prev.filter((a) => a.id !== alert.id))
 
-      try {
-        await removeAlertRecord(alert.id)
-      } catch {
-        // Fallback: put with expired timestamp
+      if (alertsReady && serverAlertIds.has(alert.id)) {
         try {
           await putAlertRecord(alert.id, {
             expiresAt: result.expiresAt,
@@ -270,16 +286,36 @@ export default function MapPage() {
         prev.map((a) => (a.id === alert.id ? { ...a, clearedBy: result.clearedBy } : a))
       )
 
-      try {
-        await putAlertRecord(alert.id, { clearedBy: result.clearedBy })
-      } catch {
-        // ignore
+      if (alertsReady && serverAlertIds.has(alert.id)) {
+        try {
+          await putAlertRecord(alert.id, { clearedBy: result.clearedBy })
+        } catch {
+          // ignore
+        }
       }
 
       info(
         'Cleared Vote Recorded',
         '1/2 votes received. 1 more commuter needed to auto-archive this pin.'
       )
+    }
+  }
+
+  // Handle status note broadcast (updates presence marker on map)
+  const handleBroadcastStatus = (statusText: string) => {
+    setStatusNote(statusText)
+    success('Status Updated', `Broadcasted "${statusText}" to active corridor presence!`)
+  }
+
+  const getMobileDrawerClasses = () => {
+    switch (mobileDrawerHeight) {
+      case 'minimized':
+        return 'h-14 md:h-full md:max-h-full'
+      case 'expanded':
+        return 'h-[85vh] max-h-[85vh] md:h-full md:max-h-full'
+      case 'normal':
+      default:
+        return 'h-[48vh] max-h-[48vh] md:h-full md:max-h-full'
     }
   }
 
@@ -347,10 +383,59 @@ export default function MapPage() {
           </MapCanvas>
         </div>
 
-        {/* Collapsible Corridor Details Sidebar */}
-        <aside className="w-full md:w-80 lg:w-96 border-t md:border-t-0 md:border-l border-border bg-card/60 backdrop-blur-md flex flex-col shrink-0 max-h-[45vh] md:max-h-full overflow-hidden">
+        {/* Collapsible Corridor Details Sidebar / Mobile Bottom Drawer */}
+        <aside
+          className={`w-full md:w-80 lg:w-96 border-t md:border-t-0 md:border-l border-border bg-card/60 backdrop-blur-md flex flex-col shrink-0 transition-[height] duration-200 overflow-hidden ${getMobileDrawerClasses()}`}
+        >
+          {/* Mobile Drawer Handle */}
+          <div className="md:hidden flex items-center justify-between px-3 py-2 border-b border-border bg-muted/40 shrink-0">
+            <button
+              type="button"
+              onClick={() =>
+                setMobileDrawerHeight((prev) =>
+                  prev === 'minimized' ? 'normal' : prev === 'normal' ? 'expanded' : 'minimized'
+                )
+              }
+              className="flex items-center gap-2 text-xs font-semibold text-foreground"
+            >
+              <Radio className="w-3.5 h-3.5 text-primary" />
+              <span className="truncate max-w-[180px]">{activeRoute.name.split(':')[0]}</span>
+              <span className="text-[10px] text-muted-foreground">
+                ({allCommuters.length} live · {allCorridorAlerts.length} alerts)
+              </span>
+            </button>
+            <div className="flex items-center gap-1">
+              {mobileDrawerHeight !== 'expanded' && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setMobileDrawerHeight((prev) => (prev === 'minimized' ? 'normal' : 'expanded'))
+                  }
+                  className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
+                  title="Expand drawer"
+                  aria-label="Expand corridor drawer"
+                >
+                  <ChevronUp className="w-4 h-4" />
+                </button>
+              )}
+              {mobileDrawerHeight !== 'minimized' && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setMobileDrawerHeight((prev) => (prev === 'expanded' ? 'normal' : 'minimized'))
+                  }
+                  className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
+                  title="Collapse drawer"
+                  aria-label="Collapse corridor drawer"
+                >
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* Header */}
-          <div className="p-4 border-b border-border">
+          <div className={`p-4 border-b border-border shrink-0 ${mobileDrawerHeight === 'minimized' ? 'hidden md:block' : ''}`}>
             <div className="flex items-center justify-between">
               <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                 <Info className="w-3.5 h-3.5 text-primary" />
@@ -388,53 +473,75 @@ export default function MapPage() {
             </div>
           </div>
 
-          {/* 3-Tab Switcher: Commuters / Stops / Hazard Alerts (Day 3) */}
-          <div className="flex border-b border-border bg-muted/40 p-1">
+          {/* 4-Tab Switcher: Commuters / Alerts / Chat / Stops */}
+          <div className={`grid grid-cols-4 gap-1 border-b border-border bg-muted/40 p-1 shrink-0 ${mobileDrawerHeight === 'minimized' ? 'hidden md:grid' : ''}`}>
             <button
               type="button"
               onClick={() => setActiveSidebarTab('commuters')}
-              className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center justify-center gap-1 ${
+              className={`py-1.5 px-1 text-[11px] font-medium rounded-md transition-colors flex items-center justify-center gap-1 ${
                 activeSidebarTab === 'commuters'
                   ? 'bg-card text-foreground shadow-xs font-semibold'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              <Users className="w-3.5 h-3.5 text-primary" />
-              <span>Commuters ({allCommuters.length})</span>
+              <Users className="w-3.5 h-3.5 text-primary shrink-0" />
+              <span className="truncate">Live ({allCommuters.length})</span>
             </button>
             <button
               type="button"
               onClick={() => setActiveSidebarTab('alerts')}
-              className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center justify-center gap-1 relative ${
+              className={`py-1.5 px-1 text-[11px] font-medium rounded-md transition-colors flex items-center justify-center gap-1 relative ${
                 activeSidebarTab === 'alerts'
                   ? 'bg-card text-foreground shadow-xs font-semibold'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
-              <span>Alerts</span>
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+              <span className="truncate">Alerts</span>
               {allCorridorAlerts.length > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-amber-950 font-bold text-[10px]">
+                <span className="px-1 rounded-full bg-amber-500 text-amber-950 font-bold text-[9px]">
                   {allCorridorAlerts.length}
                 </span>
               )}
             </button>
             <button
               type="button"
+              onClick={() => setActiveSidebarTab('chat')}
+              className={`py-1.5 px-1 text-[11px] font-medium rounded-md transition-colors flex items-center justify-center gap-1 ${
+                activeSidebarTab === 'chat'
+                  ? 'bg-card text-foreground shadow-xs font-semibold'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <MessageSquare className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+              <span className="truncate">Chat</span>
+            </button>
+            <button
+              type="button"
               onClick={() => setActiveSidebarTab('stops')}
-              className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center justify-center gap-1 ${
+              className={`py-1.5 px-1 text-[11px] font-medium rounded-md transition-colors flex items-center justify-center gap-1 ${
                 activeSidebarTab === 'stops'
                   ? 'bg-card text-foreground shadow-xs font-semibold'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              <MapPin className="w-3.5 h-3.5 text-sky-500" />
-              <span>Stops ({activeRoute.stops.length})</span>
+              <MapPin className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+              <span className="truncate">Stops</span>
             </button>
           </div>
 
           {/* Scrollable Content Area */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-2">
+          {activeSidebarTab === 'chat' ? (
+            <div className={`flex-1 min-h-0 flex flex-col ${mobileDrawerHeight === 'minimized' ? 'hidden md:flex' : ''}`}>
+              <RouteChatPanel
+                activeRoute={activeRoute}
+                myPresence={myPresence}
+                onBroadcastStatus={handleBroadcastStatus}
+                className="flex-1 min-h-0"
+              />
+            </div>
+          ) : (
+          <div className={`flex-1 overflow-y-auto p-3 space-y-2 ${mobileDrawerHeight === 'minimized' ? 'hidden md:block' : ''}`}>
             {activeSidebarTab === 'commuters' && (
               <div className="space-y-2">
                 {/* Current User Card */}
@@ -656,21 +763,19 @@ export default function MapPage() {
               </div>
             )}
           </div>
+          )}
 
-          {/* 5-Day Roadmap Status Footer */}
-          <div className="p-3 border-t border-border bg-muted/20 text-xs space-y-1.5 shrink-0">
-            <div className="flex items-center gap-2 text-emerald-400 font-semibold">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-              <span>Day 1: Base Map, Corridors & Stops Complete</span>
+          {/* Live Room Status Footer */}
+          <div className={`px-3 py-2 border-t border-border bg-muted/20 text-[11px] flex items-center justify-between gap-2 shrink-0 ${mobileDrawerHeight === 'minimized' ? 'hidden md:flex' : ''}`}>
+            <div className="flex items-center gap-1.5 font-medium text-muted-foreground">
+              <CheckCircle2
+                className={`w-3.5 h-3.5 ${connected ? 'text-emerald-500' : 'text-amber-500'}`}
+              />
+              <span>{connected ? 'Presence & Sync Live' : 'Reconnecting Room…'}</span>
             </div>
-            <div className="flex items-center gap-2 text-emerald-400 font-semibold">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-              <span>Day 2: Live Presence & Simulator Complete</span>
-            </div>
-            <div className="flex items-center gap-2 text-emerald-400 font-semibold">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-              <span>Day 3: Decaying Hazard Pins & Community Voting Complete</span>
-            </div>
+            <span className="font-mono text-[10px] text-muted-foreground">
+              TTL: 30m · 3s ping
+            </span>
           </div>
         </aside>
       </div>

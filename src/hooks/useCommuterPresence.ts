@@ -33,6 +33,8 @@ export interface UseCommuterPresenceResult {
   myPresence: CommuterPresence
   peers: CommuterPresence[]
   setRole: (role: CommuterRole) => void
+  statusNote?: string
+  setStatusNote: (note: string | undefined) => void
   isSimulating: boolean
   toggleSimulating: () => void
   simulationSpeed: number
@@ -57,6 +59,7 @@ export function useCommuterPresence(activeRoute: RouteRecord): UseCommuterPresen
 
   // Local commuter state
   const [role, setRole] = useState<CommuterRole>('on_shuttle')
+  const [statusNote, setStatusNote] = useState<string | undefined>(undefined)
   const [isSimulating, setIsSimulating] = useState<boolean>(false)
   const [simulationSpeed, setSimulationSpeed] = useState<number>(60) // km/h
   const [simulatedDistance, setSimulatedDistance] = useState<number>(0)
@@ -71,14 +74,15 @@ export function useCommuterPresence(activeRoute: RouteRecord): UseCommuterPresen
   const [currentHeading, setCurrentHeading] = useState<number>(0)
   const [simulatedProgress, setSimulatedProgress] = useState<number>(0)
 
-  // When activeRoute changes, reset position if not simulating
+  // When activeRoute changes, reset corridor coordinates and simulator distance cleanly
   useEffect(() => {
-    if (!isSimulating && activeRoute.waypoints.length > 0) {
+    if (activeRoute.waypoints.length > 0) {
       setCurrentCoords(activeRoute.waypoints[0])
       setSimulatedDistance(0)
       setSimulatedProgress(0)
+      setStatusNote(undefined)
     }
-  }, [activeRoute, isSimulating])
+  }, [activeRoute])
 
   // Geolocation watcher
   useEffect(() => {
@@ -181,6 +185,7 @@ export function useCommuterPresence(activeRoute: RouteRecord): UseCommuterPresen
       updatedAt: Date.now(),
       heading: currentHeading,
       speedKmh: isSimulating ? simulationSpeed : 0,
+      statusNote,
     }
   }, [
     userId,
@@ -191,6 +196,7 @@ export function useCommuterPresence(activeRoute: RouteRecord): UseCommuterPresen
     isSimulating,
     currentHeading,
     simulationSpeed,
+    statusNote,
   ])
 
   // Throttled presence sender (broadcasts every 3000ms over WebSocket)
@@ -210,6 +216,7 @@ export function useCommuterPresence(activeRoute: RouteRecord): UseCommuterPresen
       speedKmh: myPresenceRef.current.speedKmh,
       displayName: myPresenceRef.current.displayName,
       routeId: myPresenceRef.current.routeId,
+      statusNote: myPresenceRef.current.statusNote,
       updatedAt: Date.now(),
     })
 
@@ -224,12 +231,13 @@ export function useCommuterPresence(activeRoute: RouteRecord): UseCommuterPresen
         speedKmh: p.speedKmh,
         displayName: p.displayName,
         routeId: p.routeId,
+        statusNote: p.statusNote,
         updatedAt: Date.now(),
       })
     }, BROADCAST_INTERVAL_MS)
 
     return () => clearInterval(interval)
-  }, [connected, updateState, activeRoute.id])
+  }, [connected, updateState, activeRoute.id, role, statusNote])
 
   // Extract and filter connected peers
   const peers: CommuterPresence[] = useMemo(() => {
@@ -253,6 +261,9 @@ export function useCommuterPresence(activeRoute: RouteRecord): UseCommuterPresen
         if (typeof state.speedKmh === 'number') {
           item.speedKmh = state.speedKmh
         }
+        if (typeof state.statusNote === 'string') {
+          item.statusNote = state.statusNote
+        }
         list.push(item)
       }
     }
@@ -272,6 +283,8 @@ export function useCommuterPresence(activeRoute: RouteRecord): UseCommuterPresen
     myPresence,
     peers,
     setRole,
+    statusNote,
+    setStatusNote,
     isSimulating,
     toggleSimulating,
     simulationSpeed,

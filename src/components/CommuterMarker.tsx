@@ -142,14 +142,22 @@ export function CommuterMarker({ commuter, isSelf = false }: CommuterMarkerProps
   return (
     <Marker position={[commuter.lat, commuter.lng]} icon={markerIcon}>
       <Tooltip direction="top" offset={[0, -16]} opacity={0.95}>
-        <div className="flex items-center gap-1.5 font-medium text-xs">
-          <span>{commuter.displayName}</span>
-          {isSelf && <span className="text-[10px] text-sky-500 font-bold">(You)</span>}
-          <span className="text-[10px] text-muted-foreground">• {roleLabel}</span>
-          {commuter.isSimulated && (
-            <span className="bg-purple-500/20 text-purple-400 text-[9px] font-bold px-1 rounded">
-              SIM
-            </span>
+        <div className="flex flex-col gap-0.5">
+          <div className="flex items-center gap-1.5 font-medium text-xs">
+            <span>{commuter.displayName}</span>
+            {isSelf && <span className="text-[10px] text-sky-500 font-bold">(You)</span>}
+            <span className="text-[10px] text-muted-foreground">• {roleLabel}</span>
+            {commuter.isSimulated && (
+              <span className="bg-purple-500/20 text-purple-400 text-[9px] font-bold px-1 rounded">
+                SIM
+              </span>
+            )}
+          </div>
+          {commuter.statusNote && (
+            <div className="text-[10px] text-sky-400 font-semibold flex items-center gap-1">
+              <span>💬</span>
+              <span>"{commuter.statusNote}"</span>
+            </div>
           )}
         </div>
       </Tooltip>
@@ -170,6 +178,13 @@ export function CommuterMarker({ commuter, isSelf = false }: CommuterMarkerProps
               </span>
             )}
           </div>
+
+          {commuter.statusNote && (
+            <div className="bg-sky-500/10 border border-sky-500/20 rounded-md p-1.5 text-xs text-sky-300 font-medium">
+              <span className="text-[10px] uppercase font-bold text-sky-400 block tracking-wider">Latest Status:</span>
+              "{commuter.statusNote}"
+            </div>
+          )}
 
           <div className="space-y-0.5 text-muted-foreground">
             <div className="flex justify-between">

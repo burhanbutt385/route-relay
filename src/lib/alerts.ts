@@ -215,11 +215,11 @@ export function getInitialCorridorAlerts(routeId: string, now: number = Date.now
         },
       ]
 
-    case 'lahore-ksk-express':
+    case 'lahore-ksk-shuttle':
       return [
         {
           id: 'seed-lhr-shuttle-1',
-          routeId: 'lahore-ksk-express',
+          routeId: 'lahore-ksk-shuttle',
           type: 'shuttle_full',
           lat: 31.635,
           lng: 74.298,
@@ -233,11 +233,11 @@ export function getInitialCorridorAlerts(routeId: string, now: number = Date.now
         },
       ]
 
-    case 'uet-ksk-campus-loop':
+    case 'ksk-campus-loop':
       return [
         {
           id: 'seed-campus-roadblock-1',
-          routeId: 'uet-ksk-campus-loop',
+          routeId: 'ksk-campus-loop',
           type: 'roadblock',
           lat: 31.7565,
           lng: 74.3015,

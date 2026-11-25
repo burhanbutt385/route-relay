@@ -45,4 +45,26 @@ export interface CommuterPresence {
   updatedAt: number
   heading?: number
   speedKmh?: number
+  statusNote?: string
+}
+
+export interface RouteChatMessage {
+  id: string
+  routeId: string
+  channelId?: string
+  authorId: string
+  authorName: string
+  authorRole: CommuterRole
+  content: string
+  createdAt: number
+  isQuickChip?: boolean
+  chipLabel?: string
+}
+
+export interface QuickStatusChip {
+  id: string
+  label: string
+  category: 'location' | 'departure' | 'carpool' | 'traffic' | 'general'
+  iconName?: string
+  forRole?: CommuterRole
 }
