@@ -160,18 +160,18 @@ export interface CommuterPresence {
 ## 6. 5-Day Execution Roadmap
 
 ### Day 1: Environment Setup, Schema & Base Map
-- [ ] Scaffold project in a clean directory: `npm create deepspace@latest routerelay`
-- [ ] Load `github.com/deepdotspace/deepspace-skill` rules into Cursor.
-- [ ] Install `leaflet`, `react-leaflet`, `@types/leaflet`, and `lucide-react`.
-- [ ] Seed the 3 corridor routes (`Gujranwala ↔ UET KSK`, `Lahore ↔ UET KSK`, `Campus Loop`) with accurate coordinates.
-- [ ] Build the split-screen responsive layout: Route selector header, full-height Leaflet map canvas, and collapsible side/bottom drawer.
+- [x] Scaffold project in a clean directory: `npm create deepspace@latest routerelay`
+- [x] Load `github.com/deepdotspace/deepspace-skill` rules into Cursor.
+- [x] Install `leaflet`, `react-leaflet`, `@types/leaflet`, and `lucide-react`.
+- [x] Seed the 3 corridor routes (`Gujranwala ↔ UET KSK`, `Lahore ↔ UET KSK`, `Campus Loop`) with accurate coordinates.
+- [x] Build the split-screen responsive layout: Route selector header, full-height Leaflet map canvas, and collapsible side/bottom drawer.
 - **Verification:** Map loads smoothly with colored route polylines and stop markers; switching routes pans/fits map bounds cleanly.
 
 ### Day 2: Auth, Live Presence & Commute Simulator
-- [ ] Integrate DeepSpace authentication and role selector (`Waiting`, `On Shuttle`, `Driver`).
-- [ ] Wire up `navigator.geolocation` with graceful fallback when location permission is denied.
-- [ ] Build the **"Simulate Commute"** engine that interpolates position along the active route's `waypoints` array at realistic highway speeds.
-- [ ] Broadcast throttled coordinates (every 3s) via DeepSpace Presence and render distinct live markers for all active users in the room.
+- [x] Integrate DeepSpace authentication and role selector (`Waiting`, `On Shuttle`, `Driver`).
+- [x] Wire up `navigator.geolocation` with graceful fallback when location permission is denied.
+- [x] Build the **"Simulate Commute"** engine that interpolates position along the active route's `waypoints` array at realistic highway speeds.
+- [x] Broadcast throttled coordinates (every 3s) via DeepSpace Presence and render distinct live markers for all active users in the room.
 - **Verification:** Open two browser windows (one normal, one incognito); enable "Simulate Commute" in Window A and verify smooth marker movement in Window B, plus instant removal when Window A closes.
 
 ### Day 3: Time-Decaying Hazard Pins & Community Voting
@@ -182,15 +182,15 @@ export interface CommuterPresence {
 - **Verification:** Drop an alert in Window A, confirm it appears immediately in Window B, test voting rules, and verify automatic expiration.
 
 ### Day 4: Route Channel, Quick-Status Chips & Hardening
-- [ ] Integrate DeepSpace Channel Messaging scoped to the active `routeId`.
-- [ ] Add one-tap commuter quick chips (`"At Main Gate"`, `"Leaving in 5m"`, `"2 Seats Available"`, `"Heavy Traffic Ahead"`).
-- [ ] Audit edge cases: rapid route switching, mobile viewport drawer behavior, empty states, and network reconnects.
+- [x] Integrate DeepSpace Channel Messaging scoped to the active `routeId`.
+- [x] Add one-tap commuter quick chips (`"At Main Gate"`, `"Leaving in 5m"`, `"2 Seats Available"`, `"Heavy Traffic Ahead"`).
+- [x] Audit edge cases: rapid route switching, mobile viewport drawer behavior, empty states, and network reconnects.
 - **Verification:** Test full end-to-end flow on desktop and Chrome DevTools mobile emulation across multiple concurrent sessions.
 
 ### Day 5: Deployment & Submission Package
-- [ ] Run production build check and deploy via `npx deepspace deploy` to `routerelay.app.space`.
+- [x] Run production build check and deploy via `npx deepspace deploy` to `routerelay.app.space`.
 - [ ] Smoke-test the live production URL across two devices/browsers.
-- [ ] Clean up repository, ensure `README.md` documents setup and architecture, and prepare the submission note covering:
+- [x] Clean up repository, ensure `README.md` documents setup and architecture, and prepare the submission note covering:
   - What was built & live URL
   - DeepSpace integrations used (Auth, Presence, Synced Collections, Channels)
   - Main architectural tradeoff (Ephemeral Presence vs. Durable SQLite + Simulator for evaluator testability)
@@ -201,7 +201,7 @@ export interface CommuterPresence {
 ## 7. Submission Note Template (Draft for Day 5)
 
 > **Live URL:** `https://routerelay.app.space`  
-> **Repository:** `<github-repo-url>`
+> **Repository:** `https://github.com/burhanbutt385/route-relay`
 >
 > **What I Built:**  
 > RouteRelay is a real-time multiplayer commuter and micro-transit coordination app built around fixed regional corridors (such as the Gujranwala–UET KSK–Lahore highway route). Commuters join a route room to share live positions, drop time-decaying hazard/checkpoint alerts verified by fellow riders, and coordinate pickups in a route-scoped channel. It also includes a built-in **Simulate Commute** mode so reviewers can test live multi-user telemetry without physically traveling the route.

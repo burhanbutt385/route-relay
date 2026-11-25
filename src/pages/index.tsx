@@ -17,9 +17,16 @@
  */
 
 import { Link } from 'react-router-dom'
+import { Map, MessageSquare, Navigation2, Radio, ShieldAlert } from 'lucide-react'
 import { Seo } from '../components/Seo'
 import { APP_NAME } from '../constants'
 import { seo } from '../seo'
+
+const CORRIDORS = [
+  'GT Road Express: Gujranwala ↔ UET KSK',
+  'Lahore Express: Thokar / Shahdara ↔ UET KSK',
+  'UET KSK: Campus & Hostels Loop',
+]
 
 export default function Landing() {
   return (
@@ -27,23 +34,78 @@ export default function Landing() {
       <Seo {...seo} path="/" />
       <div
         data-testid="static-landing"
-        className="flex min-h-screen flex-col items-center justify-center px-6 text-center"
+        className="flex min-h-screen flex-col items-center justify-center bg-background px-6 py-12 text-center text-foreground"
       >
-        <p className="mb-3 text-sm uppercase tracking-widest text-muted-foreground">{APP_NAME}</p>
-        <h1 className="mb-4 max-w-2xl text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
-          A DeepSpace app with a static front door
-        </h1>
-        <p className="mb-8 max-w-md text-muted-foreground">
-          This landing page ships no auth call and no realtime connection — it's a
-          plain static page. The live app, with sign-in and synced data, lives
-          behind the link below.
-        </p>
-        <Link
-          to="/home"
-          className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
-        >
-          Enter the app
-        </Link>
+        <div className="max-w-3xl space-y-6">
+          <div className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3.5 py-1.5 text-xs font-semibold tracking-wide text-primary">
+            <Radio className="h-3.5 w-3.5" />
+            <span>Real-Time Multiplayer Micro-Transit Tracker</span>
+          </div>
+
+          <h1 className="text-4xl font-extrabold tracking-tight text-foreground sm:text-5xl">
+            Coordinate every ride along your corridor with <span className="text-primary">{APP_NAME}</span>
+          </h1>
+
+          <p className="mx-auto max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+            Join a corridor room to share live ephemeral commuter pins, verify expiring road hazard
+            alerts, and coordinate pickups with one-tap status updates — plus a built-in Commute
+            Simulator to test live multiplayer tracking from anywhere.
+          </p>
+
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            <Link
+              to="/map"
+              className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-md transition-opacity hover:opacity-90"
+            >
+              <Map className="h-4 w-4" />
+              Launch Live Corridor Map
+            </Link>
+            <Link
+              to="/home"
+              className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-6 py-3 text-sm font-semibold text-foreground transition-colors hover:bg-muted/60"
+            >
+              Explore App Overview
+            </Link>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+            {CORRIDORS.map((corridor) => (
+              <span
+                key={corridor}
+                className="rounded-full border border-border bg-card/70 px-3 py-1 text-xs font-medium text-muted-foreground"
+              >
+                {corridor}
+              </span>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 pt-6 text-left sm:grid-cols-3">
+            <div className="rounded-xl border border-border bg-card/60 p-4">
+              <Navigation2 className="mb-2 h-5 w-5 text-sky-500" />
+              <h2 className="text-sm font-semibold text-foreground">Live Presence & Simulator</h2>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                Throttled 3-second coordinates stay strictly in ephemeral presence and disappear
+                automatically on disconnect.
+              </p>
+            </div>
+            <div className="rounded-xl border border-border bg-card/60 p-4">
+              <ShieldAlert className="mb-2 h-5 w-5 text-amber-500" />
+              <h2 className="text-sm font-semibold text-foreground">TTL Hazard Pins</h2>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                Drop 30-minute traffic, checkpoint, or full-shuttle alerts with crowd verification
+                (+15m confirm or 2-vote clear).
+              </p>
+            </div>
+            <div className="rounded-xl border border-border bg-card/60 p-4">
+              <MessageSquare className="mb-2 h-5 w-5 text-emerald-500" />
+              <h2 className="text-sm font-semibold text-foreground">Route Channel & Quick Chips</h2>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                Per-corridor chat with one-tap status broadcasts that update both the feed and your
+                live map pin.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     </>
   )
