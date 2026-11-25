@@ -189,7 +189,7 @@ export interface CommuterPresence {
 
 ### Day 5: Deployment & Submission Package
 - [x] Run production build check and deploy via `npx deepspace deploy` to `routerelay.app.space`.
-- [ ] Smoke-test the live production URL across two devices/browsers.
+- [x] Smoke-test the live production URL across two devices/browsers.
 - [x] Clean up repository, ensure `README.md` documents setup and architecture, and prepare the submission note covering:
   - What was built & live URL
   - DeepSpace integrations used (Auth, Presence, Synced Collections, Channels)
