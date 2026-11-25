@@ -15,7 +15,6 @@ interface HazardMarkerProps {
   now: number
   onVoteStillThere: (alert: HazardAlert) => void
   onVoteCleared: (alert: HazardAlert) => void
-  onFocus?: (coords: [number, number]) => void
 }
 
 function getAlertIconSvg(type: HazardAlert['type']): string {

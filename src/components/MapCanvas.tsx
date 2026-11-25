@@ -4,11 +4,12 @@ import L from 'leaflet'
 import type { RouteRecord } from '../types/routerelay'
 import { StopMarker } from './StopMarker'
 
-interface MapBoundsFitterProps {
-  waypoints: [number, number][]
+export interface FocusTarget {
+  coords: [number, number]
+  seq: number
 }
 
-function MapBoundsFitter({ waypoints }: MapBoundsFitterProps) {
+function MapBoundsFitter({ waypoints }: { waypoints: [number, number][] }) {
   const map = useMap()
 
   useEffect(() => {
@@ -20,14 +21,14 @@ function MapBoundsFitter({ waypoints }: MapBoundsFitterProps) {
   return null
 }
 
-function MapCenterController({ focusCoords }: { focusCoords?: [number, number] | null }) {
+function MapCenterController({ focusTarget }: { focusTarget?: FocusTarget | null }) {
   const map = useMap()
 
   useEffect(() => {
-    if (focusCoords && focusCoords[0] && focusCoords[1]) {
-      map.flyTo(focusCoords, 14, { animate: true, duration: 1.2 })
+    if (focusTarget) {
+      map.flyTo(focusTarget.coords, 14, { animate: true, duration: 1.2 })
     }
-  }, [map, focusCoords])
+  }, [map, focusTarget])
 
   return null
 }
@@ -45,27 +46,21 @@ function MapClickHandler({ onMapClick }: { onMapClick?: (coords: [number, number
 
 interface MapCanvasProps {
   activeRoute: RouteRecord
-  focusCoords?: [number, number] | null
+  focusTarget?: FocusTarget | null
   onMapClick?: (coords: [number, number]) => void
-  isDropAlertMode?: boolean
   children?: React.ReactNode
 }
 
 export function MapCanvas({
   activeRoute,
-  focusCoords,
+  focusTarget,
   onMapClick,
-  isDropAlertMode = false,
   children,
 }: MapCanvasProps) {
   const center = activeRoute.waypoints[0] || [31.7552, 74.2995]
 
   return (
-    <div
-      className={`relative w-full h-full min-h-[400px] ${
-        isDropAlertMode ? 'cursor-crosshair' : ''
-      }`}
-    >
+    <div className="relative w-full h-full min-h-[400px]">
       <MapContainer
         center={center}
         zoom={12}
@@ -79,7 +74,7 @@ export function MapCanvas({
         />
 
         <MapBoundsFitter waypoints={activeRoute.waypoints} />
-        <MapCenterController focusCoords={focusCoords} />
+        <MapCenterController focusTarget={focusTarget} />
         <MapClickHandler onMapClick={onMapClick} />
 
         {/* Corridor Polyline Outer Glow / Border */}
@@ -111,7 +106,6 @@ export function MapCanvas({
           <StopMarker key={stop.id} stop={stop} />
         ))}
 
-        {/* Extensible slots for Live Commuters (Day 2) & Hazard Pins (Day 3) */}
         {children}
       </MapContainer>
     </div>

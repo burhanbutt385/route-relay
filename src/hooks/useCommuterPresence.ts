@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuthUser, usePresenceRoom } from 'deepspace'
 import type { CommuterPresence, CommuterRole, RouteRecord } from '../types/routerelay'
-import {
-  calculateRouteTotalDistance,
-  haversineDistance,
-  interpolatePositionAlongWaypoints,
-} from '../lib/simulator'
+import { findDistanceToStop, interpolatePositionAlongWaypoints } from '../lib/simulator'
 
 const BROADCAST_INTERVAL_MS = 3000
+const SIM_TICK_MS = 250
+const MAX_SIM_DT_SEC = 1
 
 function getOrCreateGuestIdentity(): { id: string; name: string } {
   if (typeof window === 'undefined') {
@@ -47,38 +45,35 @@ export interface UseCommuterPresenceResult {
 }
 
 export function useCommuterPresence(activeRoute: RouteRecord): UseCommuterPresenceResult {
-  const { user, isLoaded } = useAuthUser()
+  const { user } = useAuthUser()
   const guestIdentity = useMemo(() => getOrCreateGuestIdentity(), [])
 
   const userId = user?.id || guestIdentity.id
   const displayName = user?.fullName || user?.firstName || guestIdentity.name
 
-  // Presence room connection tied to the current route corridor
   const roomScope = `route:${activeRoute.id}`
   const { peers: rawPeers, connected, updateState } = usePresenceRoom(roomScope)
 
-  // Local commuter state
   const [role, setRole] = useState<CommuterRole>('on_shuttle')
   const [statusNote, setStatusNote] = useState<string | undefined>(undefined)
   const [isSimulating, setIsSimulating] = useState<boolean>(false)
   const [simulationSpeed, setSimulationSpeed] = useState<number>(60) // km/h
-  const [simulatedDistance, setSimulatedDistance] = useState<number>(0)
   const [useGps, setUseGps] = useState<boolean>(false)
-  const [gpsLocation, setGpsLocation] = useState<[number, number] | null>(null)
   const [gpsError, setGpsError] = useState<string | null>(null)
 
-  // Current calculated coordinates & heading
-  const [currentCoords, setCurrentCoords] = useState<[number, number]>(() => {
-    return activeRoute.waypoints[0] || [31.5204, 74.3587]
-  })
+  const simulatedDistanceRef = useRef<number>(0)
+  const [currentCoords, setCurrentCoords] = useState<[number, number]>(
+    () => activeRoute.waypoints[0] || [31.5204, 74.3587],
+  )
   const [currentHeading, setCurrentHeading] = useState<number>(0)
   const [simulatedProgress, setSimulatedProgress] = useState<number>(0)
 
-  // When activeRoute changes, reset corridor coordinates and simulator distance cleanly
+  // Reset corridor position and simulator progress cleanly whenever the active route changes.
   useEffect(() => {
     if (activeRoute.waypoints.length > 0) {
+      simulatedDistanceRef.current = 0
       setCurrentCoords(activeRoute.waypoints[0])
-      setSimulatedDistance(0)
+      setCurrentHeading(0)
       setSimulatedProgress(0)
       setStatusNote(undefined)
     }
@@ -93,7 +88,6 @@ export function useCommuterPresence(activeRoute: RouteRecord): UseCommuterPresen
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
         const coords: [number, number] = [pos.coords.latitude, pos.coords.longitude]
-        setGpsLocation(coords)
         setGpsError(null)
         if (!isSimulating) {
           setCurrentCoords(coords)
@@ -112,58 +106,38 @@ export function useCommuterPresence(activeRoute: RouteRecord): UseCommuterPresen
     return () => navigator.geolocation.clearWatch(watchId)
   }, [useGps, isSimulating])
 
-  // Simulation engine animation loop
-  const lastTimeRef = useRef<number>(performance.now())
+  // Simulation loop throttled to 4 Hz with capped dt so backgrounded tabs never teleport.
   useEffect(() => {
     if (!isSimulating || activeRoute.waypoints.length < 2) return
 
-    let animId: number
-    lastTimeRef.current = performance.now()
+    let lastTick = performance.now()
+    const timer = setInterval(() => {
+      const nowTick = performance.now()
+      const dt = Math.min(Math.max(0, (nowTick - lastTick) / 1000), MAX_SIM_DT_SEC)
+      lastTick = nowTick
 
-    const step = (time: number) => {
-      const dt = (time - lastTimeRef.current) / 1000 // seconds
-      lastTimeRef.current = time
-
-      // distance = speed (m/s) * time (s)
       const speedMps = (simulationSpeed * 1000) / 3600
-      const deltaMeters = speedMps * dt
+      simulatedDistanceRef.current += speedMps * dt
 
-      setSimulatedDistance((prev) => {
-        const nextDist = prev + deltaMeters
-        const interpolated = interpolatePositionAlongWaypoints(activeRoute.waypoints, nextDist)
-        setCurrentCoords(interpolated.position)
-        setCurrentHeading(interpolated.heading)
-        setSimulatedProgress(interpolated.progressPercent)
-        return nextDist
-      })
+      const interpolated = interpolatePositionAlongWaypoints(
+        activeRoute.waypoints,
+        simulatedDistanceRef.current,
+      )
+      setCurrentCoords(interpolated.position)
+      setCurrentHeading(interpolated.heading)
+      setSimulatedProgress(interpolated.progressPercent)
+    }, SIM_TICK_MS)
 
-      animId = requestAnimationFrame(step)
-    }
-
-    animId = requestAnimationFrame(step)
-    return () => cancelAnimationFrame(animId)
+    return () => clearInterval(timer)
   }, [isSimulating, activeRoute, simulationSpeed])
 
-  // Jump simulator position to a designated stop
   const jumpToStop = useCallback(
     (stopIndex: number) => {
       if (stopIndex < 0 || stopIndex >= activeRoute.stops.length) return
       const stop = activeRoute.stops[stopIndex]
-      const stopCoord: [number, number] = [stop.lat, stop.lng]
+      const distanceToStop = findDistanceToStop(activeRoute.waypoints, [stop.lat, stop.lng])
+      simulatedDistanceRef.current = distanceToStop
 
-      // Calculate distance along waypoints up to this stop
-      let distanceToStop = 0
-      for (let i = 0; i < activeRoute.waypoints.length - 1; i++) {
-        const p1 = activeRoute.waypoints[i]
-        const p2 = activeRoute.waypoints[i + 1]
-        const dToP1 = haversineDistance(stopCoord, p1)
-        if (dToP1 < 200) {
-          break
-        }
-        distanceToStop += haversineDistance(p1, p2)
-      }
-
-      setSimulatedDistance(distanceToStop)
       const interpolated = interpolatePositionAlongWaypoints(activeRoute.waypoints, distanceToStop)
       setCurrentCoords(interpolated.position)
       setCurrentHeading(interpolated.heading)
@@ -172,9 +146,8 @@ export function useCommuterPresence(activeRoute: RouteRecord): UseCommuterPresen
     [activeRoute],
   )
 
-  // My presence object
-  const myPresence: CommuterPresence = useMemo(() => {
-    return {
+  const myPresence: CommuterPresence = useMemo(
+    () => ({
       userId,
       displayName,
       routeId: activeRoute.id,
@@ -186,41 +159,28 @@ export function useCommuterPresence(activeRoute: RouteRecord): UseCommuterPresen
       heading: currentHeading,
       speedKmh: isSimulating ? simulationSpeed : 0,
       statusNote,
-    }
-  }, [
-    userId,
-    displayName,
-    activeRoute.id,
-    role,
-    currentCoords,
-    isSimulating,
-    currentHeading,
-    simulationSpeed,
-    statusNote,
-  ])
+    }),
+    [
+      userId,
+      displayName,
+      activeRoute.id,
+      role,
+      currentCoords,
+      isSimulating,
+      currentHeading,
+      simulationSpeed,
+      statusNote,
+    ],
+  )
 
-  // Throttled presence sender (broadcasts every 3000ms over WebSocket)
+  // Throttled presence sender (broadcasts every 3000ms, plus immediately on route/role/status changes)
   const myPresenceRef = useRef(myPresence)
   myPresenceRef.current = myPresence
 
   useEffect(() => {
     if (!connected) return
 
-    // Immediate initial broadcast
-    updateState({
-      role: myPresenceRef.current.role,
-      lat: myPresenceRef.current.lat,
-      lng: myPresenceRef.current.lng,
-      isSimulated: myPresenceRef.current.isSimulated,
-      heading: myPresenceRef.current.heading,
-      speedKmh: myPresenceRef.current.speedKmh,
-      displayName: myPresenceRef.current.displayName,
-      routeId: myPresenceRef.current.routeId,
-      statusNote: myPresenceRef.current.statusNote,
-      updatedAt: Date.now(),
-    })
-
-    const interval = setInterval(() => {
+    const sendState = () => {
       const p = myPresenceRef.current
       updateState({
         role: p.role,
@@ -234,12 +194,13 @@ export function useCommuterPresence(activeRoute: RouteRecord): UseCommuterPresen
         statusNote: p.statusNote,
         updatedAt: Date.now(),
       })
-    }, BROADCAST_INTERVAL_MS)
+    }
 
+    sendState()
+    const interval = setInterval(sendState, BROADCAST_INTERVAL_MS)
     return () => clearInterval(interval)
   }, [connected, updateState, activeRoute.id, role, statusNote])
 
-  // Extract and filter connected peers
   const peers: CommuterPresence[] = useMemo(() => {
     const list: CommuterPresence[] = []
     for (const peer of rawPeers) {

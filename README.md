@@ -33,8 +33,8 @@ RouteRelay deliberately splits **high-frequency ephemeral telemetry** from **low
 | Primitive | Purpose in RouteRelay | Storage Strategy |
 | :--- | :--- | :--- |
 | **Presence (`AppPresenceRoom`)** | Live commuter coordinates, heading, role & status note | Ephemeral / In-Memory (`route:<routeId>`, auto-evicts on disconnect) |
-| **Synced Collections (`AppRecordRoom`)** | `routes` (corridor metadata) & `alerts` (TTL hazard pins + votes) | Durable SQLite per Durable Object |
-| **Channel Messaging (`useChannels` / `useMessages`)** | Per-corridor coordination chat (`route-<routeId>`) & quick-status broadcasts | Durable real-time WebSocket channels |
+| **Synced Collections (`AppRecordRoom`)** | `alerts` (TTL hazard pins + server-validated crowd votes) | Durable SQLite (hourly cron prunes expired rows; corridors are static in `src/data/corridors.ts`) |
+| **Channel Messaging (`useChannels` / `useMessages`)** | Per-corridor coordination chat (`chat:<channelId>`) & quick-status broadcasts | Isolated per-channel Durable Object rooms |
 | **Auth (`DeepSpaceAuthProvider`)** | Verified identity for vote deduplication & persistent chat (with guest preview fallback) | Verified JWTs via DeepSpace Auth |
 
 ### Key Engineering Tradeoffs

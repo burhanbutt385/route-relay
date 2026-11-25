@@ -19,21 +19,6 @@ export function getRouteChannelName(routeId: string): string {
   return `route-${routeId.toLowerCase().trim()}`
 }
 
-export function formatChatTimestamp(ms: number): string {
-  const date = new Date(ms)
-  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-}
-
-export function formatChatRelativeTime(ms: number, nowMs: number = Date.now()): string {
-  const diffSec = Math.max(0, Math.floor((nowMs - ms) / 1000))
-  if (diffSec < 45) return 'Just now'
-  if (diffSec < 90) return '1m ago'
-  const diffMin = Math.floor(diffSec / 60)
-  if (diffMin < 60) return `${diffMin}m ago`
-  const diffHr = Math.floor(diffMin / 60)
-  return `${diffHr}h ago`
-}
-
 export function getInitialRouteMessages(routeId: string): RouteChatMessage[] {
   const now = Date.now()
   switch (routeId) {

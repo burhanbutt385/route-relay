@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import { SEEDED_ROUTES } from '../data/corridors'
 import {
   haversineDistance,
   calculateBearing,
   calculateRouteTotalDistance,
+  findDistanceToStop,
   interpolatePositionAlongWaypoints,
 } from './simulator'
 
@@ -55,8 +57,24 @@ describe('RouteRelay Commute Simulator', () => {
     expect(halfway.position[1]).toBeCloseTo((p1[1] + p2[1]) / 2, 4)
     expect(halfway.progressPercent).toBeCloseTo(50, 1)
 
+    // At exact total distance, stays at the final destination instead of wrapping to start
+    const end = interpolatePositionAlongWaypoints(waypoints, totalDist)
+    expect(end.position[0]).toBeCloseTo(p2[0], 4)
+    expect(end.position[1]).toBeCloseTo(p2[1], 4)
+    expect(end.progressPercent).toBe(100)
+
     // When exceeding total distance, wraps around cleanly
     const wrapped = interpolatePositionAlongWaypoints(waypoints, totalDist + 100)
     expect(wrapped.progressPercent).toBeLessThan(5)
+  })
+
+  it('jumps accurately to first, middle, and final stops on every seeded corridor', () => {
+    for (const route of SEEDED_ROUTES) {
+      for (const stop of route.stops) {
+        const dist = findDistanceToStop(route.waypoints, [stop.lat, stop.lng])
+        const landed = interpolatePositionAlongWaypoints(route.waypoints, dist)
+        expect(haversineDistance(landed.position, [stop.lat, stop.lng])).toBeLessThan(250)
+      }
+    }
   })
 })

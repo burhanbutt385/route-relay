@@ -18,12 +18,10 @@ export { cn } from '@/lib/utils'
 export { Button, buttonVariants, type ButtonProps } from './Button'
 export { Input } from './Input'
 export { Textarea } from './Textarea'
-export { SearchInput } from './SearchInput'
 export {
   Select, SelectGroup, SelectValue, SelectTrigger, SelectContent,
   SelectLabel, SelectItem, SelectSeparator,
 } from './Select'
-export { Checkbox } from './Checkbox'
 export { Switch } from './Switch'
 export { Label } from './Label'
 
@@ -33,7 +31,6 @@ export { Tabs, TabsList, TabsTrigger, TabsContent } from './Tabs'
 /* Data display */
 export { Badge, type BadgeProps } from './Badge'
 export { Avatar, AvatarImage, AvatarFallback } from './Avatar'
-export { EmptyState } from './EmptyState'
 
 /* Feedback */
 export { ToastProvider, useToast } from './Toast'

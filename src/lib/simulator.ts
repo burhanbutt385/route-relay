@@ -93,8 +93,11 @@ export function interpolatePositionAlongWaypoints(
     return { position: waypoints[0], heading: 0, segmentIndex: 0, progressPercent: 0 }
   }
 
-  // Wrap around if route loops
-  const clampedDistance = targetDistanceMeters % totalDistance
+  // Wrap only when distance exceeds route length so landing on the final stop stays at the end.
+  const clampedDistance =
+    targetDistanceMeters > totalDistance
+      ? targetDistanceMeters % totalDistance
+      : Math.max(0, targetDistanceMeters)
   const progressPercent = Math.min(100, Math.max(0, (clampedDistance / totalDistance) * 100))
 
   let accumulated = 0
@@ -130,4 +133,30 @@ export function interpolatePositionAlongWaypoints(
     segmentIndex: waypoints.length - 2,
     progressPercent: 100,
   }
+}
+
+/**
+ * Returns cumulative distance in meters along waypoints to the waypoint closest to stopCoord.
+ */
+export function findDistanceToStop(
+  waypoints: [number, number][],
+  stopCoord: [number, number],
+): number {
+  if (waypoints.length < 2) return 0
+
+  let bestIndex = 0
+  let bestDist = Infinity
+  for (let i = 0; i < waypoints.length; i++) {
+    const d = haversineDistance(stopCoord, waypoints[i])
+    if (d < bestDist) {
+      bestDist = d
+      bestIndex = i
+    }
+  }
+
+  let cumulative = 0
+  for (let i = 0; i < bestIndex; i++) {
+    cumulative += haversineDistance(waypoints[i], waypoints[i + 1])
+  }
+  return cumulative
 }

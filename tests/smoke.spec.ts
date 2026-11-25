@@ -57,6 +57,16 @@ test.describe('Smoke tests', () => {
     await expect(page.getByTestId('app-navigation')).toBeVisible({ timeout: 15000 })
   })
 
+  test('live corridor map renders selector, controls, and chat tab on /map', async ({ page }) => {
+    const errors = captureConsoleErrors(page)
+    await page.goto('/map')
+    await expect(page.getByTestId('app-navigation')).toBeVisible({ timeout: 15000 })
+    await expect(page.getByText('Corridor Room')).toBeVisible({ timeout: 15000 })
+    await page.getByRole('button', { name: /^Chat$/ }).click()
+    await expect(page.getByTestId('route-chat-panel')).toBeVisible()
+    expect(errors).toEqual([])
+  })
+
   test('sign-in button visible when logged out', async ({ page }) => {
     await page.goto('/home')
     await expect(page.getByTestId('nav-sign-in-button')).toBeVisible({ timeout: 15000 })

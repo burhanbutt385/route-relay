@@ -1,32 +1,41 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
-import { useMessages, useUser, isWriterRole } from 'deepspace'
+import { RecordScope, useMessages, useUser, useUserLookup, isWriterRole } from 'deepspace'
+import type { Message, RecordData } from 'deepspace'
+import { messagingSchemas } from '../schemas/messaging-schema'
 import { useChatChannel } from './messaging/hooks/useChatChannel'
-import type { RouteRecord, CommuterPresence, RouteChatMessage } from '../types/routerelay'
+import type {
+  CommuterPresence,
+  CommuterRole,
+  RouteChatMessage,
+  RouteRecord,
+} from '../types/routerelay'
 import {
   COMMUTER_QUICK_CHIPS,
+  getInitialRouteMessages,
   getQuickChipsForRole,
   getRouteChannelName,
-  formatChatRelativeTime,
-  getInitialRouteMessages,
 } from '../lib/routeChat'
+import { formatRelativeTime } from '../lib/alerts'
 import {
-  Send,
-  MapPin,
-  Clock,
-  Car,
   AlertTriangle,
   Bus,
-  Users,
-  Navigation,
-  MessageSquare,
-  Sparkles,
-  Radio,
+  Car,
   CheckCircle2,
+  Clock,
+  MapPin,
+  MessageSquare,
+  Navigation,
+  Radio,
+  Send,
+  Sparkles,
+  Users,
 } from 'lucide-react'
 
 interface RouteChatPanelProps {
   activeRoute: RouteRecord
   myPresence: CommuterPresence
+  peers: CommuterPresence[]
+  now: number
   onBroadcastStatus?: (statusText: string) => void
   className?: string
 }
@@ -77,72 +86,74 @@ function getRoleBadge(role: string) {
   }
 }
 
-export function RouteChatPanel({
+interface RouteChatInnerProps extends RouteChatPanelProps {
+  channelId?: string
+  channelStatus: string
+  canWrite: boolean
+  localMessages: RouteChatMessage[]
+  onAppendLocalMessage: (msg: RouteChatMessage) => void
+  resolveAuthor: (authorId: string) => { name: string; role: CommuterRole }
+  serverMessages: RecordData<Message>[]
+  sendServerMessage?: (content: string) => Promise<string> | undefined
+}
+
+function RouteChatView({
   activeRoute,
   myPresence,
+  now,
   onBroadcastStatus,
   className = '',
-}: RouteChatPanelProps) {
-  const channelName = useMemo(() => getRouteChannelName(activeRoute.id), [activeRoute.id])
-  const { channelId, status: channelStatus } = useChatChannel(channelName)
-  const { messages: serverMessages, send: sendServerMessage } = useMessages(channelId)
-  const { user } = useUser()
-  const canWrite = isWriterRole(user?.role)
-
+  channelId,
+  channelStatus,
+  canWrite,
+  localMessages,
+  onAppendLocalMessage,
+  resolveAuthor,
+  serverMessages,
+  sendServerMessage,
+}: RouteChatInnerProps) {
   const [inputVal, setInputVal] = useState('')
   const [justSentChipId, setJustSentChipId] = useState<string | null>(null)
 
-  // Local optimistic message store for responsive multi-user simulation & seeded feeds
-  const [localMessages, setLocalMessages] = useState<RouteChatMessage[]>(() =>
-    getInitialRouteMessages(activeRoute.id)
-  )
-
-  // Rapid route switching hardening: switch corridor messages cleanly on route change
   useEffect(() => {
-    setLocalMessages(getInitialRouteMessages(activeRoute.id))
     setInputVal('')
     setJustSentChipId(null)
   }, [activeRoute.id])
 
-  // Merge server records with local/seeded messages
   const displayMessages = useMemo(() => {
     const map = new Map<string, RouteChatMessage>()
 
-    // Seed/optimistic first
     for (const msg of localMessages) {
       if (msg.routeId === activeRoute.id) {
         map.set(msg.id, msg)
       }
     }
 
-    // Overlay synced DeepSpace messages
-    if (serverMessages && serverMessages.length > 0) {
-      for (const rec of serverMessages) {
-        if (!rec.data.deleted) {
-          const content = rec.data.content || ''
-          const isQuick = content.startsWith('⚡ [Status] ')
-          const cleanContent = isQuick ? content.replace('⚡ [Status] ', '') : content
+    for (const rec of serverMessages) {
+      if (rec.data.deleted) continue
+      const content = rec.data.content || ''
+      const isQuick = content.startsWith('⚡ [Status] ')
+      const cleanContent = isQuick ? content.replace('⚡ [Status] ', '') : content
+      const authorId = rec.data.authorId || rec.createdBy || 'anonymous'
+      const resolved = resolveAuthor(authorId)
 
-          map.set(rec.recordId, {
-            id: rec.recordId,
-            routeId: activeRoute.id,
-            channelId: rec.data.channelId,
-            authorId: rec.data.authorId || rec.createdBy || 'anonymous',
-            authorName: rec.createdBy === myPresence.userId ? myPresence.displayName : 'Commuter',
-            authorRole: rec.createdBy === myPresence.userId ? myPresence.role : 'on_shuttle',
-            content: cleanContent,
-            createdAt: new Date(rec.createdAt).getTime(),
-            isQuickChip: isQuick,
-            chipLabel: isQuick ? cleanContent : undefined,
-          })
-        }
-      }
+      map.set(rec.recordId, {
+        id: rec.recordId,
+        routeId: activeRoute.id,
+        channelId: rec.data.channelId,
+        authorId,
+        authorName: resolved.name,
+        authorRole: resolved.role,
+        content: cleanContent,
+        createdAt: new Date(rec.createdAt).getTime(),
+        isQuickChip: isQuick,
+        chipLabel: isQuick ? cleanContent : undefined,
+      })
     }
 
     return Array.from(map.values()).sort((a, b) => a.createdAt - b.createdAt)
-  }, [serverMessages, localMessages, activeRoute.id, myPresence])
+  }, [serverMessages, localMessages, activeRoute.id, resolveAuthor])
 
-  // Auto-scroll to bottom of feed
   const feedEndRef = useRef<HTMLDivElement>(null)
   const scrollToBottom = useCallback(() => {
     feedEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -152,30 +163,14 @@ export function RouteChatPanel({
     scrollToBottom()
   }, [displayMessages.length, scrollToBottom])
 
-  // Send message handler (works with free-form text or 1-tap quick status chips)
   const handleSendMessage = async (text: string, isChip = false, chipLabel?: string) => {
     const trimmed = text.trim()
     if (!trimmed) return
 
-    const newMsg: RouteChatMessage = {
-      id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      routeId: activeRoute.id,
-      channelId,
-      authorId: myPresence.userId,
-      authorName: myPresence.displayName,
-      authorRole: myPresence.role,
-      content: trimmed,
-      createdAt: Date.now(),
-      isQuickChip: isChip,
-      chipLabel: chipLabel || (isChip ? trimmed : undefined),
-    }
-
-    // 1. Broadcast status note to Presence layer (so markers on Leaflet map reflect it live!)
     if (onBroadcastStatus) {
       onBroadcastStatus(trimmed)
     }
 
-    // 2. Persist to DeepSpace Channel Collection when writable; fall back to local state for guests
     let persistedToChannel = false
     if (channelId && canWrite && sendServerMessage) {
       try {
@@ -188,21 +183,32 @@ export function RouteChatPanel({
     }
 
     if (!persistedToChannel) {
-      setLocalMessages((prev) => [...prev, newMsg])
+      onAppendLocalMessage({
+        id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        routeId: activeRoute.id,
+        channelId,
+        authorId: myPresence.userId,
+        authorName: myPresence.displayName,
+        authorRole: myPresence.role,
+        content: trimmed,
+        createdAt: Date.now(),
+        isQuickChip: isChip,
+        chipLabel: chipLabel || (isChip ? trimmed : undefined),
+      })
     }
 
     setInputVal('')
     setTimeout(scrollToBottom, 50)
   }
 
-  // 1-Tap Quick Chip Dispatch
   const handleTapChip = (chip: (typeof COMMUTER_QUICK_CHIPS)[0]) => {
     setJustSentChipId(chip.id)
     setTimeout(() => setJustSentChipId(null), 1200)
-    handleSendMessage(chip.label, true, chip.label)
+    void handleSendMessage(chip.label, true, chip.label)
   }
 
   const roleChips = useMemo(() => getQuickChipsForRole(myPresence.role), [myPresence.role])
+  const isLiveSynced = Boolean(channelId && canWrite && channelStatus === 'ready')
 
   return (
     <div
@@ -225,17 +231,17 @@ export function RouteChatPanel({
         <div className="flex items-center gap-1.5 shrink-0">
           <span
             className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${
-              channelId && canWrite && channelStatus === 'ready'
+              isLiveSynced
                 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                 : 'bg-muted text-muted-foreground border-border'
             }`}
             title={
-              channelId && canWrite && channelStatus === 'ready'
+              isLiveSynced
                 ? 'Synced across tabs via DeepSpace Channel'
                 : 'Local corridor preview — sign in to sync chat across sessions'
             }
           >
-            {channelId && canWrite && channelStatus === 'ready' ? 'Live' : 'Demo'}
+            {isLiveSynced ? 'Live' : 'Demo'}
           </span>
           <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
             {displayMessages.length} msgs
@@ -266,7 +272,11 @@ export function RouteChatPanel({
                 }`}
                 title={`One-tap send "${chip.label}"`}
               >
-                {isSent ? <CheckCircle2 className="w-3 h-3 text-emerald-400" /> : getChipIcon(chip.iconName)}
+                {isSent ? (
+                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                ) : (
+                  getChipIcon(chip.iconName)
+                )}
                 <span>{chip.label}</span>
               </button>
             )
@@ -294,22 +304,20 @@ export function RouteChatPanel({
                   isSelf ? 'items-end' : 'items-start'
                 }`}
               >
-                {/* Meta line */}
                 <div className="flex items-center gap-1.5 mb-1 px-1 text-[10px] text-muted-foreground">
                   <span className="font-semibold text-foreground">{msg.authorName}</span>
                   {isSelf && <span className="text-sky-400 font-bold">(You)</span>}
                   {getRoleBadge(msg.authorRole)}
-                  <span>· {formatChatRelativeTime(msg.createdAt)}</span>
+                  <span>· {formatRelativeTime(msg.createdAt, now)}</span>
                 </div>
 
-                {/* Message Bubble */}
                 <div
                   className={`max-w-[85%] rounded-2xl px-3 py-2 text-xs leading-relaxed shadow-xs ${
                     msg.isQuickChip
                       ? 'border border-amber-500/30 bg-amber-500/10 text-amber-200 rounded-tr-sm'
                       : isSelf
-                      ? 'bg-primary text-primary-foreground rounded-tr-sm'
-                      : 'bg-card border border-border text-foreground rounded-tl-sm'
+                        ? 'bg-primary text-primary-foreground rounded-tr-sm'
+                        : 'bg-card border border-border text-foreground rounded-tl-sm'
                   }`}
                 >
                   {msg.isQuickChip && (
@@ -330,7 +338,7 @@ export function RouteChatPanel({
       <form
         onSubmit={(e) => {
           e.preventDefault()
-          handleSendMessage(inputVal, false)
+          void handleSendMessage(inputVal, false)
         }}
         className="p-2.5 border-t border-border bg-card/80 shrink-0 flex items-center gap-2"
       >
@@ -351,5 +359,85 @@ export function RouteChatPanel({
         </button>
       </form>
     </div>
+  )
+}
+
+function ScopedChannelFeed(
+  props: Omit<RouteChatInnerProps, 'serverMessages' | 'sendServerMessage'> & { channelId: string },
+) {
+  const { messages, send } = useMessages(props.channelId)
+  return <RouteChatView {...props} serverMessages={messages} sendServerMessage={send} />
+}
+
+export function RouteChatPanel(props: RouteChatPanelProps) {
+  const { activeRoute, myPresence, peers } = props
+  const channelName = useMemo(() => getRouteChannelName(activeRoute.id), [activeRoute.id])
+  const { channelId, status: channelStatus } = useChatChannel(channelName)
+  const { user } = useUser()
+  const { getUser } = useUserLookup()
+  const canWrite = isWriterRole(user?.role)
+
+  // Key local/demo messages by routeId so switching corridors never erases guest messages.
+  const [localByRoute, setLocalByRoute] = useState<Record<string, RouteChatMessage[]>>(() => ({
+    [activeRoute.id]: getInitialRouteMessages(activeRoute.id),
+  }))
+
+  const localMessages = useMemo(
+    () => localByRoute[activeRoute.id] ?? getInitialRouteMessages(activeRoute.id),
+    [localByRoute, activeRoute.id],
+  )
+
+  const handleAppendLocalMessage = useCallback(
+    (msg: RouteChatMessage) => {
+      setLocalByRoute((prev) => ({
+        ...prev,
+        [activeRoute.id]: [...(prev[activeRoute.id] ?? getInitialRouteMessages(activeRoute.id)), msg],
+      }))
+    },
+    [activeRoute.id],
+  )
+
+  const resolveAuthor = useCallback(
+    (authorId: string): { name: string; role: CommuterRole } => {
+      if (authorId === myPresence.userId) {
+        return { name: myPresence.displayName, role: myPresence.role }
+      }
+      const peer = peers.find((p) => p.userId === authorId)
+      const userRecord = getUser(authorId)
+      return {
+        name: userRecord?.name || peer?.displayName || 'Commuter',
+        role: peer?.role || 'on_shuttle',
+      }
+    },
+    [myPresence.userId, myPresence.displayName, myPresence.role, peers, getUser],
+  )
+
+  // Isolate each route channel into its own chat:<channelId> RecordRoom, matching /chat.
+  if (channelId) {
+    return (
+      <RecordScope roomId={`chat:${channelId}`} schemas={messagingSchemas}>
+        <ScopedChannelFeed
+          {...props}
+          channelId={channelId}
+          channelStatus={channelStatus}
+          canWrite={canWrite}
+          localMessages={localMessages}
+          onAppendLocalMessage={handleAppendLocalMessage}
+          resolveAuthor={resolveAuthor}
+        />
+      </RecordScope>
+    )
+  }
+
+  return (
+    <RouteChatView
+      {...props}
+      channelStatus={channelStatus}
+      canWrite={canWrite}
+      localMessages={localMessages}
+      onAppendLocalMessage={handleAppendLocalMessage}
+      resolveAuthor={resolveAuthor}
+      serverMessages={[]}
+    />
   )
 }

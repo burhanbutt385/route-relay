@@ -15,9 +15,10 @@ export const alertsSchema: CollectionSchema = {
     { name: 'confirmedBy', storage: 'text', interpretation: 'json' },
     { name: 'clearedBy', storage: 'text', interpretation: 'json' },
   ],
+  // Direct client writes stay locked; signed-in commuters create and vote through validated server actions.
   permissions: {
-    viewer: { read: true, create: true, update: true, delete: false },
-    member: { read: true, create: true, update: true, delete: false },
+    viewer: { read: true, create: false, update: false, delete: false },
+    member: { read: true, create: false, update: false, delete: false },
     admin: { read: true, create: true, update: true, delete: true },
   },
 }

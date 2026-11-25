@@ -201,7 +201,7 @@ export function CommuteControls({
             </button>
 
             {showStopsDropdown && (
-              <div className="absolute left-0 bottom-full mb-1 w-48 bg-card border border-border rounded-lg shadow-xl py-1 z-50">
+              <div className="absolute left-0 top-full mt-1 w-48 bg-card border border-border rounded-lg shadow-xl py-1 z-50">
                 <div className="px-2 py-1 text-[10px] uppercase font-semibold text-muted-foreground border-b border-border">
                   Select Corridor Stop
                 </div>
